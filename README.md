@@ -1,1 +1,0 @@
-# texture-adaptive-nav
