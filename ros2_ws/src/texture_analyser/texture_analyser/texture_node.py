@@ -1,11 +1,3 @@
-"""
-source install/setup.bash
-ros2 run texture_analyser OpticalFlowSubscriber
-
-Implement ROS2 node to subscribe to optical flow camera and display images using OpenCV
-"""
-
-
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -14,6 +6,12 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 import cv2
+import numpy as np
+
+
+# WORLD
+WORLD_NAME = "forest"
+
 
 class OpticalFlowSubscriber(Node):
     """
@@ -24,13 +22,38 @@ class OpticalFlowSubscriber(Node):
     def __init__(self):
         super().__init__("optical_flow_subscriber")
         self.subsciber_ = self.create_subscription(Image,
-                                                    '/world/default/model/x500_flow_0/link/flow_link/sensor/flow_camera/image',
+                                                    f'/world/{WORLD_NAME}/model/x500_flow_0/link/flow_link/sensor/flow_camera/image',
                                                     self.listener_callback,
                                                     10
                                                     )
         # Used to convert between ROS and OpenCV images
         self.br = CvBridge()
+        
+        cv2.namedWindow("camera", cv2.WINDOW_NORMAL)
+        # cv2.namedWindow("Sobel X", cv2.WINDOW_NORMAL)
+        # cv2.namedWindow("Sobel Y", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("Gradient Magnitude", cv2.WINDOW_NORMAL)
+        # Window size 
+        cv2.resizeWindow("camera", 500, 500)
+        cv2.resizeWindow("Sobel X", 500, 500)
+        cv2.resizeWindow("Sobel Y", 500, 500)
+        cv2.resizeWindow("Gradient Magnitude", 500, 500)
+
         self.get_logger().info('Image Subscriber Node has started.')
+
+    def sobel_scharr(self,img):
+        """
+        Computes image gradients using the Sobel operator.
+        """
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # X gradient Sobel 
+        sobelX = cv2.Sobel(img,cv2.CV_64F,1,0,ksize=5)
+        # Y gradient Sobel 
+        sobelY = cv2.Sobel(img,cv2.CV_64F,0,1,ksize=5)
+
+
+        return sobelX, sobelY
+        
 
 
     def listener_callback(self, data):
@@ -38,18 +61,42 @@ class OpticalFlowSubscriber(Node):
         Call back function
         """
 
-        self.get_logger().info("Receiving..")
+        # self.get_logger().info("Receiving..")
 
         # Convert ROS Image message to OpenCV image
         current_frame = self.br.imgmsg_to_cv2(data)
 
+
+        """
+        Compute gradient magnitude:
+        Combines X and Y gradients to get overall edge strength at each pixel
+        G = sqrt(Gx^2 + Gy^2)
+        """
+        gx, gy     = self.sobel_scharr(current_frame)
+        G_value    = cv2.magnitude(gx, gy)
+
+        """
+        compute the variance of the gradient magnitude.
+        higher variance -> rich texture
+        Low variance    -> flat surface
+        """
+        G_variance = np.var(G_value)
+
+        G_display = cv2.convertScaleAbs(G_value)
+        # gx_display = cv2.convertScaleAbs(gx)
+        # gy_display = cv2.convertScaleAbs(gy)
+
+        self.get_logger().info(f"Gradient variance: {G_variance:.2f}")
+
+
+
         # Display Image
-        cv2.namedWindow("camera", cv2.WINDOW_NORMAL)
-        # Window size 
-        cv2.resizeWindow("camera", 500, 500)
         cv2.imshow("camera", current_frame)
+        # cv2.imshow("Sobel X", gx_display)
+        # cv2.imshow("Sobel Y", gy_display)
+        cv2.imshow("Gradient Magnitude", G_display)
         cv2.waitKey(1)
-        
+
 
 def main(args=None):
     rclpy.init(args=args)
