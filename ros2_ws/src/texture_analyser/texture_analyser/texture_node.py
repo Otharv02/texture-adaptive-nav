@@ -7,11 +7,14 @@ from cv_bridge import CvBridge
 
 import cv2
 import numpy as np
+from skimage.filters.rank import entropy
+from skimage.morphology import disk
 
 
-# WORLD
+# WORLDS
 WORLD_NAME = "forest"
-
+# WORLD_NAME = "lawn"
+# WORLD_NAME = "default"
 
 class OpticalFlowSubscriber(Node):
     """
@@ -34,14 +37,17 @@ class OpticalFlowSubscriber(Node):
         # cv2.namedWindow("Sobel Y", cv2.WINDOW_NORMAL)
         cv2.namedWindow("camera", cv2.WINDOW_NORMAL)
         cv2.namedWindow("Gradient Magnitude", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("laplacian", cv2.WINDOW_NORMAL)        
+        cv2.namedWindow("laplacian", cv2.WINDOW_NORMAL)  
+        cv2.namedWindow("entropy", cv2.WINDOW_NORMAL)  
+
         # Window size 
 
         # cv2.resizeWindow("Sobel X", 500, 500)
         # cv2.resizeWindow("Sobel Y", 500, 500)
-        cv2.resizeWindow("camera", 500, 500)
-        cv2.resizeWindow("Gradient Magnitude", 500, 500)
-        cv2.resizeWindow("laplacian", 500, 500)
+        cv2.resizeWindow("camera", 350, 350)
+        cv2.resizeWindow("Gradient Magnitude", 350, 350)
+        cv2.resizeWindow("laplacian", 350, 350)
+        cv2.resizeWindow("entropy", 350, 350)
 
         self.get_logger().info('Image Subscriber Node has started.')
 
@@ -69,6 +75,17 @@ class OpticalFlowSubscriber(Node):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = cv2.Laplacian(img,cv2.CV_64F)
         return img
+    
+    
+    def entropy_operation(self,img):
+        """
+        Compute local entropy over a grayscale image using a sliding window.
+        """
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        img = img.astype(np.uint8)
+        entropy_img = entropy(img, disk(5)) 
+
+        return entropy_img
 
 
     def listener_callback(self, data):
@@ -117,6 +134,20 @@ class OpticalFlowSubscriber(Node):
         self.get_logger().info(f"Laplacian variance: {laplacian_var:.2f}")
 
 
+        """
+        Compute local entropy of the image to measure texture complexity.
+        - High entropy  -> highly detailed / textured regions (good for optical flow)
+        - Low entropy   -> uniform / flat regions (poor features)
+        """
+        entropy_img = self.entropy_operation(current_frame)
+        entropy_display = cv2.normalize(entropy_img, None, 0, 255, cv2.NORM_MINMAX)
+        # Convert to uint8
+        entropy_display = entropy_display.astype(np.uint8)
+
+        entropy_value = np.mean(entropy_img)
+        self.get_logger().info(f"Entropy: {entropy_value:.2f}")
+
+
 
         # Display Image
         
@@ -127,7 +158,12 @@ class OpticalFlowSubscriber(Node):
         
         cv2.imshow("Gradient Magnitude", G_display)
         cv2.imshow("laplacian", laplacian_display)
+        cv2.imshow("entropy", entropy_display)
+        
+
         cv2.waitKey(1)
+
+
 
 
 def main(args=None):
