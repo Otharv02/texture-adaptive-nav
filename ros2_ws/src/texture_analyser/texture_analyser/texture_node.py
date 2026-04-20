@@ -16,6 +16,18 @@ WORLD_NAME = "forest"
 # WORLD_NAME = "lawn"
 # WORLD_NAME = "default"
 
+
+# Range values (test only)
+G_min = 100
+G_max = 230000
+
+L_min = 0.09
+L_max = 1100
+
+E_min = 0.15
+E_max = 5.0
+
+
 class OpticalFlowSubscriber(Node):
     """
     Class constructor to set up the node
@@ -88,6 +100,27 @@ class OpticalFlowSubscriber(Node):
         return entropy_img
 
 
+
+    def clamp(self,x):
+        """
+        Clamp a value to the range [0, 1].
+        """
+        return max(0.0, min(1.0, x))
+
+    def compute_texture_confidence(self, G_variance, laplacian_var, entropy_value, G_min, G_max, L_min, L_max, E_min, E_max):
+        """
+        Normalizes gradient variance, Laplacian variance, and entropy to [0, 1]
+        Higher confidence -> strong texture (reliable for vision tasks)
+        Lower confidence  -> weak texture (less reliable)
+        """
+        G_norm = self.clamp((G_variance - G_min)/(G_max - G_min))
+        L_norm = self.clamp((laplacian_var - L_min)/(L_max - L_min))
+        E_norm = self.clamp((entropy_value - E_min)/(E_max - E_min))
+
+        confidence = (G_norm + L_norm + E_norm)/3.0
+
+        return confidence
+
     def listener_callback(self, data):
         """
         Call back function
@@ -148,11 +181,12 @@ class OpticalFlowSubscriber(Node):
         self.get_logger().info(f"Entropy: {entropy_value:.2f}")
 
 
+        # Logging confidence values
+        confidence = self.compute_texture_confidence(G_variance, laplacian_var, entropy_value,G_min, G_max, L_min, L_max, E_min, E_max)
+        self.get_logger().info(f"Texture Confidence: {confidence:.2f}")
 
         # Display Image
-        
         cv2.imshow("camera", current_frame)
-        
         # cv2.imshow("Sobel X", gx_display)
         # cv2.imshow("Sobel Y", gy_display)
         
