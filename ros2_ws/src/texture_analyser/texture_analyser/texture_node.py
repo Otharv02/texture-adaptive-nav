@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from std_msgs.msg import Float32
 
 # Package to convert between ROS and OpenCV Images
 from cv_bridge import CvBridge
@@ -12,9 +13,9 @@ from skimage.morphology import disk
 
 
 # WORLDS
-WORLD_NAME = "forest"
+# WORLD_NAME = "forest"
 # WORLD_NAME = "lawn"
-# WORLD_NAME = "default"
+WORLD_NAME = "default"
 
 
 # Range values (test only)
@@ -36,11 +37,19 @@ class OpticalFlowSubscriber(Node):
 
     def __init__(self):
         super().__init__("optical_flow_subscriber")
+
         self.subsciber_ = self.create_subscription(Image,
                                                     f'/world/{WORLD_NAME}/model/x500_flow_0/link/flow_link/sensor/flow_camera/image',
                                                     self.listener_callback,
                                                     10
                                                     )
+        
+        self.confidence_pub_ = self.create_publisher(Float32, 
+                                                     'texture/confidence',
+                                                     10)
+    
+        
+
         # Used to convert between ROS and OpenCV images
         self.br = CvBridge()
         
@@ -53,7 +62,6 @@ class OpticalFlowSubscriber(Node):
         cv2.namedWindow("entropy", cv2.WINDOW_NORMAL)  
 
         # Window size 
-
         # cv2.resizeWindow("Sobel X", 500, 500)
         # cv2.resizeWindow("Sobel Y", 500, 500)
         cv2.resizeWindow("camera", 350, 350)
@@ -184,6 +192,13 @@ class OpticalFlowSubscriber(Node):
         # Logging confidence values
         confidence = self.compute_texture_confidence(G_variance, laplacian_var, entropy_value,G_min, G_max, L_min, L_max, E_min, E_max)
         self.get_logger().info(f"Texture Confidence: {confidence:.2f}")
+
+
+        # Publish the confidence values
+        msg = Float32()
+        msg.data = confidence
+        self.confidence_pub_.publish(msg)
+        self.get_logger().info(f'Confidence: {msg.data}')
 
         # Display Image
         cv2.imshow("camera", current_frame)

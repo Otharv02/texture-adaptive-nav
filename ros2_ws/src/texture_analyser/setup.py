@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'OpticalFlowSubscriber = texture_analyser.texture_node:main'
+            'OpticalFlowSubscriber = texture_analyser.texture_node:main',
+            'AdaptiveFusionNode    = texture_analyser.adaptive_fusion_node:main'
         ],
     },
 )
