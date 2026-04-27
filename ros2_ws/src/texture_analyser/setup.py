@@ -25,7 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'OpticalFlowSubscriber = texture_analyser.texture_node:main',
-            'AdaptiveFusionNode    = texture_analyser.adaptive_fusion_node:main'
+            'AdaptiveFusionNode    = texture_analyser.adaptive_fusion_node:main',
+            'OffboardControl       = texture_analyser.offboard_control_node:main'
         ],
     },
 )

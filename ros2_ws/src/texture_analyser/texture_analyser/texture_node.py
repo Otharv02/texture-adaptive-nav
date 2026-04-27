@@ -53,24 +53,38 @@ class OpticalFlowSubscriber(Node):
         # Used to convert between ROS and OpenCV images
         self.br = CvBridge()
         
-
-        # cv2.namedWindow("Sobel X", cv2.WINDOW_NORMAL)
-        # cv2.namedWindow("Sobel Y", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("camera", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("Gradient Magnitude", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("laplacian", cv2.WINDOW_NORMAL)  
-        cv2.namedWindow("entropy", cv2.WINDOW_NORMAL)  
-
-        # Window size 
-        # cv2.resizeWindow("Sobel X", 500, 500)
-        # cv2.resizeWindow("Sobel Y", 500, 500)
-        cv2.resizeWindow("camera", 350, 350)
-        cv2.resizeWindow("Gradient Magnitude", 350, 350)
-        cv2.resizeWindow("laplacian", 350, 350)
-        cv2.resizeWindow("entropy", 350, 350)
-
+        cv2.namedWindow("Texture Analysis", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("Texture Analysis", 700, 700)
         self.get_logger().info('Image Subscriber Node has started.')
 
+    def img_combined(self, camera, gradient, laplacian, entropy_disp):
+        h, w = 350,350
+
+        cam  = cv2.resize(camera, (w,h))
+        grad = cv2.resize(gradient, (w,h))
+        lap  = cv2.resize(laplacian, (w,h))
+        ent  = cv2.resize(entropy_disp, (w,h))
+
+        if len(grad.shape) == 2:
+            grad = cv2.cvtColor(grad, cv2.COLOR_GRAY2BGR)
+        if len(lap.shape) == 2:
+            lap  = cv2.cvtColor(lap,  cv2.COLOR_GRAY2BGR)
+        if len(ent.shape) == 2:
+            ent  = cv2.cvtColor(ent,  cv2.COLOR_GRAY2BGR)
+        if len(cam.shape) == 2:
+            cam  = cv2.cvtColor(cam,  cv2.COLOR_GRAY2BGR)
+
+        cv2.putText(cam,  "Camera",    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.putText(grad, "Gradient",  (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.putText(lap,  "Laplacian", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.putText(ent,  "Entropy",   (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        # Stitch into 2x2 grid
+        top    = np.hstack([cam, grad])
+        bottom = np.hstack([lap, ent])
+        grid   = np.vstack([top, bottom])
+
+        cv2.imshow("Texture Analysis", grid)
 
 
     def sobel_scharr(self,img):
@@ -157,7 +171,7 @@ class OpticalFlowSubscriber(Node):
         # gx_display = cv2.convertScaleAbs(gx)
         # gy_display = cv2.convertScaleAbs(gy)
 
-        self.get_logger().info(f"Gradient variance: {G_variance:.2f}")
+        # self.get_logger().info(f"Gradient variance: {G_variance:.2f}")
 
 
         """
@@ -172,7 +186,7 @@ class OpticalFlowSubscriber(Node):
 
         # convertScaleAbs -> remove negative + convert large float values + float64 → uint8 (standard image formate)
         laplacian_display = cv2.convertScaleAbs(laplacian)        
-        self.get_logger().info(f"Laplacian variance: {laplacian_var:.2f}")
+        # self.get_logger().info(f"Laplacian variance: {laplacian_var:.2f}")
 
 
         """
@@ -186,30 +200,22 @@ class OpticalFlowSubscriber(Node):
         entropy_display = entropy_display.astype(np.uint8)
 
         entropy_value = np.mean(entropy_img)
-        self.get_logger().info(f"Entropy: {entropy_value:.2f}")
+        # self.get_logger().info(f"Entropy: {entropy_value:.2f}")
 
 
         # Logging confidence values
         confidence = self.compute_texture_confidence(G_variance, laplacian_var, entropy_value,G_min, G_max, L_min, L_max, E_min, E_max)
-        self.get_logger().info(f"Texture Confidence: {confidence:.2f}")
+        # self.get_logger().info(f"Texture Confidence: {confidence:.2f}")
 
 
         # Publish the confidence values
         msg = Float32()
         msg.data = confidence
         self.confidence_pub_.publish(msg)
-        self.get_logger().info(f'Confidence: {msg.data}')
+        # self.get_logger().info(f'Confidence: {msg.data}')
 
         # Display Image
-        cv2.imshow("camera", current_frame)
-        # cv2.imshow("Sobel X", gx_display)
-        # cv2.imshow("Sobel Y", gy_display)
-        
-        cv2.imshow("Gradient Magnitude", G_display)
-        cv2.imshow("laplacian", laplacian_display)
-        cv2.imshow("entropy", entropy_display)
-        
-
+        self.img_combined(current_frame, G_display, laplacian_display, entropy_display)
         cv2.waitKey(1)
 
 
